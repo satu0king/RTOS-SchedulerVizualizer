@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>jQuery UI Sortable - Drop placeholder</title>
+    <title>RMS Scheduler</title>
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="styles.css">
     <script src="./canvas.js"></script>
@@ -122,6 +122,7 @@
             metadata.cpuUtilization = Math.round(processTime * 10000.0 / cpuTime)/100.0;
             metadata.cpuWastage =  Math.round(overheadTime * 10000.0 / cpuTime)/100.0;
             metadata.cpuIdle =  Math.round(idleTime * 10000.0 / cpuTime)/100.0;
+            metadata.hyperPeriod =  hyperPeriod;
 
             metadata.possible = scheduler.valid;
             console.log(metadata.possible, eventList);
@@ -148,7 +149,8 @@
 
             $("#display").append(`CPU Utilization - ${metadata.cpuUtilization}%<br>`);
             $("#display").append(`CPU Idle - ${metadata.cpuIdle}%<br>`);
-            $("#display").append(`CPU Wastage - ${metadata.cpuWastage}%`);
+            $("#display").append(`CPU Wastage - ${metadata.cpuWastage}%<br>`);
+            $("#display").append(`Hyper Period - ${metadata.hyperPeriod}`);
 
 
             let jobCount = Object.keys(eventList.jobs).length
