@@ -59,6 +59,8 @@ class Scheduler {
                 this.cpus[i].process(t);
 
             while (idx < this.taskList.length && this.taskList[idx].start <= t) {
+                if(this.taskList[idx].start < t)
+                    throw new Error("Algo fail");
                 let task = this.taskList[idx++];
                 this.runQueue.addJob(new Job(task.name, task.start, task.deadLine, task.time, task.period, this));
             }
@@ -75,15 +77,17 @@ class Scheduler {
                     }
 
                     let period = this.cpus[i].currentJob.period;
-                    if (period > this.cpus[bestCPU].period)
+                    if (period > this.cpus[bestCPU].currentJob.period)
                         bestCPU = i;
                 }
 
-                if (!assigned && this.cpus[bestCPU].period > bestPeriod) {
+                if (!assigned && this.cpus[bestCPU].currentJob.period > bestPeriod) {
                     this.cpus[bestCPU].startNextJob(t);
                     assigned = true;
                 }
-                if (!assigned) break;
+                if (!assigned) {
+                    break;
+                }
             }
 
             let nextTime = -1;
