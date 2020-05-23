@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="styles.css">
     <script src="./canvas.js"></script>
+    <script src="./RMS_Scheduler.js"></script>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
     <script>
@@ -28,8 +29,13 @@
 
 
     <canvas id="canvasArea" style="background-color:lightgrey;width:100%;height:500px"></canvas>
+    <div style = "padding:10px">
     <button onclick="newJob()"> Add Job</button>
     <button onclick="generateSchedule()"> Generate Schedule</button>
+    Context Switch OverHead: <input type="number" name = "contextOverHead" value = "0" min="0" max="10" onchange="generateSchedule();"> </input>
+    Number Of Threads: <input type="number" name = "threadCount" value = "1" min="1" max="10" onchange="generateSchedule();"> </input>
+    </div>
+
 
     <div style="width:1000px">
         <ul id="sortable" class="taskList">
@@ -122,15 +128,16 @@
 
             let t = 0;
             let idx = 0;
-            let jobQueue = [];
             let eventList = {}
             
+            let runQueue = new RunQueue();
 
             while (t < hyperPeriod && idx < taskList.length && possible) {
                 while (idx < taskList.length && taskList[idx].start <= t) {
                     
                     let task = taskList[idx++];
-                    jobQueue.push(task);
+                    runQueue.addJob(task);
+
                     if (!eventList[task.name])
                         eventList[task.name] = [];
 
@@ -140,12 +147,9 @@
                         time: t
                     })
                 }
-
-
-                jobQueue.sort(function (a, b) { return a.period != b.period ? b.period - a.period : b.start - a.start })
-
-                while (t < hyperPeriod && !(idx < taskList.length && taskList[idx].start <= t) && jobQueue.length && possible) {
-                    let job = jobQueue.pop();
+                
+                while (t < hyperPeriod && !(idx < taskList.length && taskList[idx].start <= t) && runQueue.hasItem() && possible) {
+                    let job = runQueue.getNextJob();
                     let maxEndTime = idx < taskList.length ? taskList[idx].start : hyperPeriod;
                     console.log(job, maxEndTime, t);
                     let usedTime = Math.min(maxEndTime - t, job.time);
@@ -162,14 +166,14 @@
                     if (t > job.deadline)
                         possible = false;
                     else if (job.time)
-                        jobQueue.push(job);
+                        runQueue.addJob(job);
                 }
 
                 if (idx < taskList.length)
                     t = Math.max(t, taskList[idx].start);
             }
 
-            metadata.possible = possible && idx == taskList.length && jobQueue.length == 0;
+            metadata.possible = possible && idx == taskList.length && !runQueue.hasItem();
             console.log(metadata.possible);
             render(eventList, metadata);
         }
@@ -193,7 +197,7 @@
             const hyperPeriod = metadata.hyperPeriod;
 
             function x(time) { return width * time / hyperPeriod + offsetX; }
-            function y(job) { return metadata.jobIdx[job] * (taskMargin + taskHeight); }
+            function y(job) { return metadata.jobIdx[job] * (taskMargin + taskHeight) + offsetY; }
 
             // Draw Axis
             canvas.setColor("Black");
@@ -213,7 +217,7 @@
             canvas.ctx.textAlign = "right";
             for(let job in eventList) {
                 console.log(job);
-                canvas.drawText(offsetX - 10, y(job) + taskHeight/2, job, 30);
+                canvas.drawText(offsetX - 10, y(job) + taskHeight/2, job, 20);
             }
             
 
