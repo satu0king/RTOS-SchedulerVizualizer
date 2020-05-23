@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>jQuery UI Sortable - Drop placeholder</title>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="./canvas.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script>
+        $(function () {
+            $("#sortable").sortable({
+                placeholder: "ui-state-highlight",
+                change: updateJobList,
+                update: updateJobList
+            });
+            $("#sortable").disableSelection();
+        });
+    </script>
+</head>
+
+<body onload="canvas.setup()">
+
+
+
+
+    <canvas id="canvasArea" style="background-color:lightgrey;width:100%;height:500px"></canvas>
+    <button onclick="newJob()"> Add Job</button>
+    <button onclick="generateSchedule()"> Generate Schedule</button>
+
+    <div style="width:1000px">
+        <ul id="sortable" class="taskList">
+
+        </ul>
+    </div>
+
+
+
+
+
+    <script>
+
+
+        var jobCount = 0;
+
+        var jobList = []
+        function newJob() {
+            jobCount++;
+            let newTask =
+                `<li class="ui-state-default" id = "job${jobCount}">
+              <div class = "task">
+                <span class="ui-icon ui-icon-arrowthick-2-n-s"></span>
+                  Name: <input type="text" name ="name" id = 'name' value = "Job ${jobCount}" onchange="updateJobList();"> </input>
+                  Period: <input type="number" name = "period" value = "50" onchange="updateJobList();"> </input>
+                  Job Time: <input type="number" name = "time" value = "10" onchange="updateJobList();"> </input>
+                  <button onClick="$('#job${jobCount}').remove();updateJobList();"> X</button>
+              </div>
+            </li>`
+            $('.taskList').append(newTask);
+
+            updateJobList();
+
+        }
+
+        function updateJobList() {
+            jobList = []
+            $(".task").each(function (idx, li) {
+
+                jobList.push({
+                    name: $(li).children('input[name="name"]').val(),
+                    time: parseInt($(li).children('input[name="time"]').val()),
+                    period: parseInt($(li).children('input[name="period"]').val())
+                })
+                // and the rest of your code
+            });
+
+            generateSchedule();
+
+        }
+
+        function generateSchedule() {
+            let hyperPeriod = 1;
+
+
+            let jobIdx = {}
+
+            for (let i = 0; i < jobList.length; i++) {
+                hyperPeriod = lcm(hyperPeriod, jobList[i].period);
+                jobIdx[jobList[i].name] = i;
+            }
+
+            let metadata = {}
+            metadata.hyperPeriod = hyperPeriod;
+            metadata.jobIdx = jobIdx;
+            metadata.jobList = jobList;
+            let possible = true;
+            let taskList = [];
+
+            for (let i = 0; i < jobList.length; i++) {
+                let time = jobList[i].time;
+                let period = jobList[i].period;
+                let name = jobList[i].name;
+                if(hyperPeriod <= 0) {
+                    possible = false;
+                    break;
+                }
+                for (let i = 0; i < hyperPeriod; i += period) {
+                    taskList.push({
+                        name: name,
+                        start: i,
+                        deadline: i + period,
+                        time: time,
+                        period: period
+                    });
+                }
+            }
+            taskList.sort((a, b) => { return a.start == b.start ? a.period - b.period : a.start - b.start })
+            console.log(taskList);
+
+            let t = 0;
+            let idx = 0;
+            let jobQueue = [];
+            let eventList = {}
+            
+
+            while (t < hyperPeriod && idx < taskList.length && possible) {
+                while (idx < taskList.length && taskList[idx].start <= t) {
+                    
+                    let task = taskList[idx++];
+                    jobQueue.push(task);
+                    if (!eventList[task.name])
+                        eventList[task.name] = [];
+
+
+                    eventList[task.name].push({
+                        event: "Release",
+                        time: t
+                    })
+                }
+
+
+                jobQueue.sort(function (a, b) { return a.period != b.period ? b.period - a.period : b.start - a.start })
+
+                while (t < hyperPeriod && !(idx < taskList.length && taskList[idx].start <= t) && jobQueue.length && possible) {
+                    let job = jobQueue.pop();
+                    let maxEndTime = idx < taskList.length ? taskList[idx].start : hyperPeriod;
+                    console.log(job, maxEndTime, t);
+                    let usedTime = Math.min(maxEndTime - t, job.time);
+                    job.time -= usedTime;
+
+                    eventList[job.name].push({
+                        event: "Process",
+                        startTime: t,
+                        endTime: t + usedTime,
+                    })
+
+                    t += usedTime;
+
+                    if (t > job.deadline)
+                        possible = false;
+                    else if (job.time)
+                        jobQueue.push(job);
+                }
+
+                if (idx < taskList.length)
+                    t = Math.max(t, taskList[idx].start);
+            }
+
+            metadata.possible = possible && idx == taskList.length && jobQueue.length == 0;
+            console.log(metadata.possible);
+            render(eventList, metadata);
+        }
+
+
+
+        function render(eventList, metadata) {
+            canvas.clear();
+            if (!metadata.possible) return;
+
+            let jobCount = Object.keys(eventList).length;
+
+            const margin = 20;
+            const offsetX = 100 + margin;
+            const offsetY = margin;
+            const width = canvas.width - offsetX - margin;
+            const height = canvas.height - offsetY - margin - 20;
+
+            const taskMargin = 10;
+            const taskHeight = Math.min(100, (height - (jobCount - 1) * taskMargin) / jobCount);
+            const hyperPeriod = metadata.hyperPeriod;
+
+            function x(time) { return width * time / hyperPeriod + offsetX; }
+            function y(job) { return metadata.jobIdx[job] * (taskMargin + taskHeight); }
+
+            // Draw Axis
+            canvas.setColor("Black");
+            canvas.setLineThickness(1);
+            canvas.setDrawMode("stroke")
+            canvas.drawLine(offsetX, offsetY + height, offsetX + width, offsetY + height); // X Axis
+            canvas.drawLine(offsetX, offsetY + height, offsetX, offsetY); // YAxis
+
+            let xAxisTick = Math.ceil(hyperPeriod / 50.0);
+
+            canvas.ctx.textAlign = "center";
+            for(let t = 0; t <= hyperPeriod; t += xAxisTick) {
+                canvas.drawLine(x(t), offsetY + height, x(t),offsetY + height + 3);
+                canvas.drawText(x(t), offsetY + height + 15, t, 10);
+            }
+
+            canvas.ctx.textAlign = "right";
+            for(let job in eventList) {
+                console.log(job);
+                canvas.drawText(offsetX - 10, y(job) + taskHeight/2, job, 30);
+            }
+            
+
+            for (jobId in eventList) {
+                let pos_y = y(jobId);
+                let events = eventList[jobId];
+                for (let i = 0; i < events.length; i++) {
+                    let event = events[i];
+                    if (event.event == "Release") {
+                        canvas.setDrawMode("stroke")
+                        canvas.setColor("Red");
+                        canvas.setLineThickness(5);
+                        canvas.drawLine(x(event.time), pos_y, x(event.time), pos_y + taskHeight);
+                    }
+
+                    if (event.event == "Process") {
+                        canvas.setDrawMode("fill");
+                        canvas.setColor("green");
+                        canvas.drawRectangle(x(event.startTime), pos_y, x(event.endTime) - x(event.startTime), taskHeight);
+                    }
+                }
+            }
+
+
+        }
+
+        function lcm(x, y) {
+            if ((typeof x !== 'number') || (typeof y !== 'number'))
+                return false;
+            return (!x || !y) ? 0 : Math.abs((x * y) / gcd(x, y));
+        }
+
+        function gcd(x, y) {
+            x = Math.abs(x);
+            y = Math.abs(y);
+            while (y) {
+                var t = y;
+                y = x % y;
+                x = t;
+            }
+            return x;
+        }
+
+
+        canvas.setupFunction = newJob;
+
+    </script>
+
+
+
+</body>
+
+</html>
