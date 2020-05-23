@@ -76,12 +76,12 @@ class Scheduler {
                         break;
                     }
 
-                    let period = this.cpus[i].currentJob.period;
-                    if (period > this.cpus[bestCPU].currentJob.period)
+                    let period = this.cpus[i].period();
+                    if (period > this.cpus[bestCPU].period())
                         bestCPU = i;
                 }
 
-                if (!assigned && this.cpus[bestCPU].currentJob.period > bestPeriod) {
+                if (!assigned && this.cpus[bestCPU].period() > bestPeriod) {
                     this.cpus[bestCPU].startNextJob(t);
                     assigned = true;
                 }
@@ -213,6 +213,11 @@ class CPU {
             this.releaseJob(time);
 
         this.startJob(time, this.runQueue.getNextJob());
+    }
+
+    period() {
+        assert(this.isBusy());
+        return this.currentJob.period;
     }
 
     startJob(time, job) {
