@@ -62,6 +62,24 @@
 
 */
 
+
+CanvasRenderingContext2D.prototype.roundRect = function (x,y,width,height,radius) {
+    radius = Math.min(Math.max(width-1,1),Math.max(height-1,1),radius);
+    var rectX = x;
+    var rectY = y;
+    var rectWidth = width;
+    var rectHeight = height;
+    var cornerRadius = radius;
+
+    this.lineJoin = "round";
+    this.lineWidth = cornerRadius;
+    this.beginPath();
+    this.strokeRect(rectX+(cornerRadius/2), rectY+(cornerRadius/2), rectWidth-cornerRadius, rectHeight-cornerRadius);
+    this.fillRect(rectX+(cornerRadius/2), rectY+(cornerRadius/2), rectWidth-cornerRadius, rectHeight-cornerRadius);
+    this.stroke();
+    this.fill();
+}
+
 // Canvas State Variables
 canvas = {
     ctx: undefined,

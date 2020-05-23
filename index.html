@@ -11,16 +11,6 @@
     <script src="./RMS_Scheduler.js"></script>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <script>
-        $(function () {
-            $("#sortable").sortable({
-                placeholder: "ui-state-highlight",
-                change: updateJobList,
-                update: updateJobList
-            });
-            $("#sortable").disableSelection();
-        });
-    </script>
 </head>
 
 <body onload="canvas.setup()">
@@ -29,21 +19,32 @@
 
 
     <canvas id="canvasArea" style="background-color:lightgrey;width:100%;height:500px"></canvas>
-    <div style = "padding:10px">
-    <button onclick="newJob()"> Add Job</button>
-    <button onclick="generateSchedule()"> Generate Schedule</button>
-    Context Switch OverHead: <input type="number" name = "contextOverHead" value = "0" min="0" max="10" onchange="generateSchedule();"> </input>
-    Number Of Threads: <input type="number" name = "threadCount" value = "1" min="1" max="10" onchange="generateSchedule();"> </input>
+    <div style="padding:10px">
+        <button onclick="newJob()"> Add Job</button>
+        <button onclick="updateJobList()"> Generate Schedule</button>
+        Context Switch OverHead: <input type="number" name="contextOverHead" value="0" min="0" max="10"
+            onchange="updateJobList();"> </input>
+        Number Of Threads: <input type="number" name="threadCount" value="1" min="1" max="10"
+            onchange="updateJobList();"> </input>
     </div>
 
 
-    <div style="width:1000px">
-        <ul id="sortable" class="taskList">
+    <div style="overflow: hidden;">
+        <div style="width:800px; float:left;">
+            <ul id="sortable" class="taskList">
 
-        </ul>
+            </ul>
+        </div>
+
+        <div id="display" style="overflow: hidden;">
+
+        </div>
     </div>
 
 
+
+
+    <!-- position: fixed; right:10px; top:500px -->
 
 
 
@@ -51,8 +52,6 @@
 
 
         var jobCount = 0;
-
-        var jobList = []
         function newJob() {
             jobCount++;
             let newTask =
@@ -72,7 +71,7 @@
         }
 
         function updateJobList() {
-            jobList = []
+            let jobList = []
             $(".task").each(function (idx, li) {
 
                 jobList.push({
@@ -83,13 +82,15 @@
                 // and the rest of your code
             });
 
-            generateSchedule();
+            let overhead = parseInt($('input[name="contextOverHead"]').val());
+            let threadCount = parseInt($('input[name="threadCount"]').val());
+
+            generateSchedule(jobList, overhead, threadCount);
 
         }
 
-        function generateSchedule() {
+        function generateSchedule(jobList, overhead, threadCount) {
             let hyperPeriod = 1;
-
 
             let jobIdx = {}
 
@@ -103,78 +104,27 @@
             metadata.jobIdx = jobIdx;
             metadata.jobList = jobList;
             let possible = true;
-            let taskList = [];
-
-            for (let i = 0; i < jobList.length; i++) {
-                let time = jobList[i].time;
-                let period = jobList[i].period;
-                let name = jobList[i].name;
-                if(hyperPeriod <= 0) {
-                    possible = false;
-                    break;
-                }
-                for (let i = 0; i < hyperPeriod; i += period) {
-                    taskList.push({
-                        name: name,
-                        start: i,
-                        deadline: i + period,
-                        time: time,
-                        period: period
-                    });
-                }
-            }
-            taskList.sort((a, b) => { return a.start == b.start ? a.period - b.period : a.start - b.start })
-            console.log(taskList);
-
-            let t = 0;
-            let idx = 0;
-            let eventList = {}
-            
-            let runQueue = new RunQueue();
-
-            while (t < hyperPeriod && idx < taskList.length && possible) {
-                while (idx < taskList.length && taskList[idx].start <= t) {
-                    
-                    let task = taskList[idx++];
-                    runQueue.addJob(task);
-
-                    if (!eventList[task.name])
-                        eventList[task.name] = [];
 
 
-                    eventList[task.name].push({
-                        event: "Release",
-                        time: t
-                    })
-                }
-                
-                while (t < hyperPeriod && !(idx < taskList.length && taskList[idx].start <= t) && runQueue.hasItem() && possible) {
-                    let job = runQueue.getNextJob();
-                    let maxEndTime = idx < taskList.length ? taskList[idx].start : hyperPeriod;
-                    console.log(job, maxEndTime, t);
-                    let usedTime = Math.min(maxEndTime - t, job.time);
-                    job.time -= usedTime;
+            let scheduler = new Scheduler(overhead, threadCount, jobList, hyperPeriod);
+            let eventList = scheduler.process();
 
-                    eventList[job.name].push({
-                        event: "Process",
-                        startTime: t,
-                        endTime: t + usedTime,
-                    })
-
-                    t += usedTime;
-
-                    if (t > job.deadline)
-                        possible = false;
-                    else if (job.time)
-                        runQueue.addJob(job);
-                }
-
-                if (idx < taskList.length)
-                    t = Math.max(t, taskList[idx].start);
+            let cpuTime = hyperPeriod * threadCount;
+            let processTime = 0;
+            let idleTime = 0;
+            let overheadTime = 0;
+            for (let i = 0; i < threadCount; i++) {
+                processTime += scheduler.cpus[i].processTime;
+                overheadTime += scheduler.cpus[i].overheadTime;
+                idleTime += scheduler.cpus[i].idleTime;
             }
 
-            metadata.possible = possible && idx == taskList.length && !runQueue.hasItem();
-            console.log(metadata.possible);
+            metadata.cpuUtilization = Math.round(processTime * 10000.0 / cpuTime)/100.0;
+            metadata.cpuWastage =  Math.round(overheadTime * 10000.0 / cpuTime)/100.0;
+            metadata.cpuIdle =  Math.round(idleTime * 10000.0 / cpuTime)/100.0;
+
+            metadata.possible = scheduler.valid;
+            console.log(metadata.possible, eventList);
             render(eventList, metadata);
         }
 
@@ -182,9 +132,27 @@
 
         function render(eventList, metadata) {
             canvas.clear();
-            if (!metadata.possible) return;
 
-            let jobCount = Object.keys(eventList).length;
+            if (!metadata.possible) {
+                $("#display").text("Invalid Task List");
+                return;
+            }
+
+            $("#display").empty();
+            $("#display").append("<h3>Legend</h3>")
+            $("#display").append("Blue - CPU is being Used<br>")
+            $("#display").append("Yellow - CPU is wasted<br>")
+            $("#display").append("Gray - CPU is idle<br>")
+            $("#display").append("Red - Job Release Time<br>")
+            $("#display").append("<h3>Stats</h3>")
+
+            $("#display").append(`CPU Utilization - ${metadata.cpuUtilization}%<br>`);
+            $("#display").append(`CPU Idle - ${metadata.cpuIdle}%<br>`);
+            $("#display").append(`CPU Wastage - ${metadata.cpuWastage}%`);
+
+
+            let jobCount = Object.keys(eventList.jobs).length
+            let yCount = jobCount + eventList.cpus.length;
 
             const margin = 20;
             const offsetX = 100 + margin;
@@ -193,11 +161,14 @@
             const height = canvas.height - offsetY - margin - 20;
 
             const taskMargin = 10;
-            const taskHeight = Math.min(100, (height - (jobCount - 1) * taskMargin) / jobCount);
+            const taskHeight = Math.min(100, (height - (yCount - 1) * taskMargin) / yCount);
             const hyperPeriod = metadata.hyperPeriod;
 
             function x(time) { return width * time / hyperPeriod + offsetX; }
-            function y(job) { return metadata.jobIdx[job] * (taskMargin + taskHeight) + offsetY; }
+            function y(item) {
+                if (typeof item == "string") return metadata.jobIdx[item] * (taskMargin + taskHeight) + offsetY;
+                return [item + jobCount] * (taskMargin + taskHeight) + offsetY;
+            }
 
             // Draw Axis
             canvas.setColor("Black");
@@ -208,22 +179,34 @@
 
             let xAxisTick = Math.ceil(hyperPeriod / 50.0);
 
-            canvas.ctx.textAlign = "center";
-            for(let t = 0; t <= hyperPeriod; t += xAxisTick) {
-                canvas.drawLine(x(t), offsetY + height, x(t),offsetY + height + 3);
-                canvas.drawText(x(t), offsetY + height + 15, t, 10);
+            canvas.setColor("rgba(1, 1, 1, 0.2)");
+            for (let t = 0; t <= hyperPeriod; t += xAxisTick)
+                canvas.drawLine(x(t), offsetY, x(t), offsetY + height + 3);
+
+            for (let i = 0; i < yCount; i++) {
+                canvas.drawLine(offsetX, i * (taskHeight + taskMargin) - taskMargin * 0.5 + offsetY, offsetX + width, i * (taskHeight + taskMargin) - taskMargin * 0.5 + offsetY);
             }
+
+            canvas.setColor("black");
+            canvas.ctx.textAlign = "center";
+            for (let t = 0; t <= hyperPeriod; t += xAxisTick)
+                canvas.drawText(x(t), offsetY + height + 15, t, 10);
+
 
             canvas.ctx.textAlign = "right";
-            for(let job in eventList) {
+            for (let job in eventList.jobs) {
                 console.log(job);
-                canvas.drawText(offsetX - 10, y(job) + taskHeight/2, job, 20);
+                canvas.drawText(offsetX - 10, y(job) + taskHeight / 2, job, 20);
             }
-            
 
-            for (jobId in eventList) {
+            for (let i = 0; i < eventList.cpus.length; i++) {
+                canvas.drawText(offsetX - 10, y(i) + taskHeight / 2, `CPU${i}`, 20);
+            }
+
+
+            for (jobId in eventList.jobs) {
                 let pos_y = y(jobId);
-                let events = eventList[jobId];
+                let events = eventList.jobs[jobId];
                 for (let i = 0; i < events.length; i++) {
                     let event = events[i];
                     if (event.event == "Release") {
@@ -234,12 +217,39 @@
                     }
 
                     if (event.event == "Process") {
-                        canvas.setDrawMode("fill");
+                        // canvas.setDrawMode("fill");
                         canvas.setColor("green");
+                        canvas.ctx.roundRect(x(event.startTime), pos_y, x(event.endTime) - x(event.startTime), taskHeight, 5);
+                    }
+                }
+            }
+
+            for (let i = 0; i < eventList.cpus.length; i++) {
+                let pos_y = y(i);
+                let events = eventList.cpus[i];
+                for (let i = 0; i < events.length; i++) {
+                    let event = events[i];
+                    canvas.setDrawMode("fill");
+                    if (event.event == "Idle") {
+                        canvas.setDrawMode("fill");
+                        canvas.setColor("grey");
+                        canvas.drawRectangle(x(event.startTime), pos_y, x(event.endTime) - x(event.startTime), taskHeight);
+                    }
+
+                    if (event.event == "Overhead") {
+                        canvas.setDrawMode("fill");
+                        canvas.setColor("yellow");
+                        canvas.drawRectangle(x(event.startTime), pos_y, x(event.endTime) - x(event.startTime), taskHeight);
+                    }
+
+                    if (event.event == "Process") {
+
+                        canvas.setColor("blue");
                         canvas.drawRectangle(x(event.startTime), pos_y, x(event.endTime) - x(event.startTime), taskHeight);
                     }
                 }
             }
+
 
 
         }
@@ -264,6 +274,14 @@
 
         canvas.setupFunction = newJob;
 
+        $(function () {
+            $("#sortable").sortable({
+                placeholder: "ui-state-highlight",
+                change: updateJobList,
+                update: updateJobList
+            });
+            $("#sortable").disableSelection();
+        });
     </script>
 
 
