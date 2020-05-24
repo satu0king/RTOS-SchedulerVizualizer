@@ -8,7 +8,8 @@
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="styles.css">
     <script src="./canvas.js"></script>
-    <script src="./RMS_Scheduler.js"></script>
+    <script src="./core.js"></script>
+    <script src="./schedulers.js"></script>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 </head>
@@ -24,15 +25,32 @@
         <button onclick="updateJobList()"> Generate Schedule</button>
         Context Switch OverHead: <input type="number" name="contextOverHead" value="0" min="0" max="10"
             onchange="updateJobList();"> </input>
-        Number Of Threads: <input type="number" name="threadCount" value="1" min="1" max="10"
+        Number Of CPUs: <input type="number" name="threadCount" value="1" min="1" max="10"
             onchange="updateJobList();"> </input>
+
+        Scheduling Algorithm:
+        <select id="algo" onchange="updateJobList();">
+            <option value="RMS">RMS</option>
+            <option value="PRIORITY">Priority</option>
+            <option value="EDF">EDF</option>
+        </select>
     </div>
 
 
     <div style="overflow: hidden;">
-        <div style="width:800px; float:left;">
-            <ul id="sortable" class="taskList">
+        <div style="width:700px; float:left;">
+            <ul id="sortable" class="taskList" style="width:630px;">
 
+            </ul>
+
+            Note:
+            <ul>
+                <li>Deadline is amount of time from release time</li>
+                <li>If deadline is zero, time period is taken as deadline</li>
+                <li>Try the different algorithms</li>
+                <li>Try tweaking the number of CPUs  </li>
+                <li>Try tweaking the Context Switch Overhead</li>
+                <li>For priority based scheduling, the priority is decided by the list order</li>
             </ul>
         </div>
 
@@ -59,8 +77,9 @@
               <div class = "task">
                 <span class="ui-icon ui-icon-arrowthick-2-n-s"></span>
                   Name: <input type="text" name ="name" id = 'name' value = "Job ${jobCount}" onchange="updateJobList();"> </input>
-                  Period: <input type="number" name = "period" value = "50" onchange="updateJobList();"> </input>
-                  Job Time: <input type="number" name = "time" value = "10" onchange="updateJobList();"> </input>
+                  Period: <input type="number" name = "period" value = "50"  min = "1" onchange="updateJobList();"> </input>
+                  Job Time: <input type="number" name = "time" value = "10"  min = "1" onchange="updateJobList();"> </input>
+                  Deadline: <input type="number" name = "deadline" min = "0" value = "0" onchange="updateJobList();"> </input>
                   <button onClick="$('#job${jobCount}').remove();updateJobList();"> X</button>
               </div>
             </li>`
@@ -77,13 +96,16 @@
                 jobList.push({
                     name: $(li).children('input[name="name"]').val(),
                     time: parseInt($(li).children('input[name="time"]').val()),
-                    period: parseInt($(li).children('input[name="period"]').val())
+                    period: parseInt($(li).children('input[name="period"]').val()),
+                    deadline: parseInt($(li).children('input[name="deadline"]').val())
                 })
                 // and the rest of your code
             });
 
             let overhead = parseInt($('input[name="contextOverHead"]').val());
             let threadCount = parseInt($('input[name="threadCount"]').val());
+
+            console.log(jobList);
 
             generateSchedule(jobList, overhead, threadCount);
 
@@ -103,10 +125,9 @@
             metadata.hyperPeriod = hyperPeriod;
             metadata.jobIdx = jobIdx;
             metadata.jobList = jobList;
-            let possible = true;
 
-
-            let scheduler = new Scheduler(overhead, threadCount, jobList, hyperPeriod);
+            let schedulerFn = SchedulerFunction[document.getElementById("algo").value];
+            let scheduler = new Scheduler(overhead, threadCount, jobList, hyperPeriod, schedulerFn);
             let eventList = scheduler.process();
 
             let cpuTime = hyperPeriod * threadCount;
@@ -119,13 +140,12 @@
                 idleTime += scheduler.cpus[i].idleTime;
             }
 
-            metadata.cpuUtilization = Math.round(processTime * 10000.0 / cpuTime)/100.0;
-            metadata.cpuWastage =  Math.round(overheadTime * 10000.0 / cpuTime)/100.0;
-            metadata.cpuIdle =  Math.round(idleTime * 10000.0 / cpuTime)/100.0;
-            metadata.hyperPeriod =  hyperPeriod;
+            metadata.cpuUtilization = Math.round(processTime * 10000.0 / cpuTime) / 100.0;
+            metadata.cpuWastage = Math.round(overheadTime * 10000.0 / cpuTime) / 100.0;
+            metadata.cpuIdle = Math.round(idleTime * 10000.0 / cpuTime) / 100.0;
+            metadata.hyperPeriod = hyperPeriod;
 
             metadata.possible = scheduler.valid;
-            console.log(metadata.possible, eventList);
             render(eventList, metadata);
         }
 
@@ -133,13 +153,25 @@
 
         function render(eventList, metadata) {
             canvas.clear();
-
+            $("#display").empty();
+            
             if (!metadata.possible) {
-                $("#display").text("Invalid Task List. Try increasing number of threads or reducing the job time. Alternatively try increasing the time period.");
+                
+                $("#display").append(`Invalid Task List. Try the following things: 
+                <ul>
+                    <li> Increase CPU Count</li>
+                    <li> Decrease Context Switch Overhead</li>
+                    <li> Deleting a Job</li>
+                    <li> Changing the scheduling algorithm</li>
+                    <li> Changing priority of the jobs</li>
+                    <li> Changing deadline of the jobs</li>
+                    <li> Reducing job time of the jobs</li>
+                </ul>
+                `);
                 return;
             }
 
-            $("#display").empty();
+            
             $("#display").append("<h3>Legend</h3>")
             $("#display").append("Blue - CPU is being Used<br>")
             $("#display").append("Yellow - CPU is wasted<br>")
