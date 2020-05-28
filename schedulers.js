@@ -11,7 +11,7 @@ function EDF_Fn(a, b) { return a.deadline != b.deadline ? b.deadline - a.deadlin
 const SchedulerFunction = {
     RMS: RMS_Fn,
     PRIORITY: Priority_Fn,
-    EDF:EDF_Fn
+    EDF: EDF_Fn
 }
 
 class Scheduler {
