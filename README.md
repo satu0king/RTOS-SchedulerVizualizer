@@ -83,7 +83,7 @@ Any new scheduling algorithm can produce a similar event list which can be rende
 
 ### Core Structures 
 
-Some core structures have been implemented to support scheduling elegantly. These structures update the event list automatically when actions are executed. These structures are also independent of the scheduling algorithm and is intended for reuse.
+Some core structures have been implemented to support scheduling elegantly. These structures update the event list automatically when actions are executed. These structures are also independent of the scheduling algorithm and is intended for reuse. The code can be found at `core.js`.
 
 #### class Job 
 This classrepresents a job in the runqueue. A job can be assigned to a CPU. During a context switch, the job is unassigned from the CPU. The states of a Job are Release, Waiting, Processing, Completed. Job objects maintains context information like CPU, remaining time, job id and also other metadata like priority, time period, deadline etc.
@@ -98,6 +98,8 @@ This class represents the current active list of pending jobs waiting to be exec
 ### Scheduling 
 
 The `Scheduler` class is the core of the scheduling algorithm. The constructor of the class prepares the task list for the scheduling. When `process()` is called, the scheduler "simulates" the scheduling algorithm. The scheduler maintains time and adds jobs from the task list into the runQueue as time passes. When a job is added to the runQueue, the scheduler assigns the job to a free CPU if available. If no free CPU is available but a lower priority job is being executed on one of the CPU, then that job is preempted and the new job is assigned. 
+
+The code can be found at `schedulers.js`
 
 ### Supporting different scheduling algorithms
 The amazing part of this elegant implementation is that different scheduling algorithms can be easily implemented by just tweaking the priority functions. The follow are the priority functions for RMS, EDF and Static Fixed Priority algorithm.
