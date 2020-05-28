@@ -64,8 +64,8 @@ Job Process Event (Job + CPU)
 ```
 {
     event: "Process",
-    startTime: this.cpu.currentTime,
-    endTime: endTime,
+    startTime: 10,
+    endTime: 20,
 }
 ```
 
@@ -74,8 +74,8 @@ CPU Idle Event (CPU only)
 ```
 {
     event: "Process",
-    startTime: this.cpu.currentTime,
-    endTime: endTime,
+    startTime: 30,
+    endTime: 100,
 }
 ```
 
